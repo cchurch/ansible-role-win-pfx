@@ -1,0 +1,19 @@
+---
+
+galaxy_info:
+  author: Chris Church
+  description: Install SSL certificates from PFX files on Windows.
+  company: "Nine More Minutes, Inc."
+  license: GPLv3
+  min_ansible_version: 2.3
+  platforms:
+    - name: Windows
+      versions:
+        - '2012R2'
+        # - '2016'
+  galaxy_tags:
+    - 'windows'
+    - 'pfx'
+    - 'ssl'
+dependencies: []
+allow_duplicates: yes

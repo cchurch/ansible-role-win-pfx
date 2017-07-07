@@ -1,0 +1,100 @@
+---
+
+- name: check that required vars are defined to create local pfx file
+  set_fact:
+    _pfx_crt_content: '{{pfx_crt|default(omit,true)|mandatory}}'
+    _pfx_key_content: '{{pfx_key|default(omit,true)|mandatory}}'
+    _pfx_ca_content: '{{pfx_ca|default("",true)}}'
+  when: not pfx_file|default("",true)
+
+- block:
+
+    - block:
+
+        - name: create temp file for local cert input
+          local_action: tempfile
+          args:
+            state: file
+            suffix: .crt
+          register: _pfx_crt_file
+
+        - name: create temp file for local key input
+          local_action: tempfile
+          args:
+            state: file
+            suffix: .key
+          register: _pfx_key_file
+
+        - name: create temp file for local pfx output
+          local_action: tempfile
+          args:
+            state: file
+            suffix: .pfx
+          register: _pfx_pfx_file
+
+        - name: write cert and ca bundle to local temp file
+          local_action: copy
+          args:
+            content: |
+              {{_pfx_crt_content}}
+              {{_pfx_ca_content}}
+            dest: '{{_pfx_crt_file.path}}'
+
+        - name: write key to local temp file
+          local_action: copy
+          args:
+            content: '{{_pfx_key_content}}'
+            dest: '{{_pfx_key_file.path}}'
+
+        - name: create local temp pfx file content from cert and key
+          local_action: >
+            command openssl pkcs12 -export
+            -passout 'pass:' -out {{_pfx_pfx_file.path|quote}}
+            -inkey {{_pfx_key_file.path|quote}} -in {{_pfx_crt_file.path|quote}}
+
+        - name: save local copy of pfx file
+          local_action: fetch
+          args:
+            src: '{{_pfx_pfx_file.path}}'
+            dest: '{{pfx_output_file}}'
+            flat: true
+          when: pfx_output_file|default("",true)
+
+      when: not pfx_file|default("",true)
+
+    - name: create remote temp file for pfx
+      win_tempfile:
+        state: file
+        suffix: '.pfx'
+      register: _pfx_remote_tempfile
+
+    - name: copy local pfx file to remote
+      win_copy:
+        src: '{{pfx_file|default(_pfx_pfx_file.path,true)}}'
+        dest: '{{_pfx_remote_tempfile.path}}'
+
+    - name: install (or remove) cert from pfx file
+      action: _win_import_pfx_cert
+      args:
+        path: '{{_pfx_remote_tempfile.path}}'
+        state: '{{pfx_state|default("present",true)}}'
+      register: pfx_import_result
+
+  always:
+  
+    - name: remove local temp files
+      local_action: file
+      args:
+        path: '{{item}}'
+        state: absent
+      when: item|default("",true)
+      with_items:
+       - '{{(_pfx_crt_file|default({},true)).path|default("",true)}}'
+       - '{{(_pfx_key_file|default({},true)).path|default("",true)}}'
+       - '{{(_pfx_pfx_file|default({},true)).path|default("",true)}}'
+
+    - name: remove remote temp file
+      win_file:
+        path: '{{_pfx_remote_tempfile.path}}'
+        state: absent
+      when: (_pfx_remote_tempfile|default({},true)).path|default("",true)

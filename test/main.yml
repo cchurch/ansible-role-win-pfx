@@ -1,0 +1,6 @@
+---
+
+- name: TODO - test pfx role
+  hosts: windows
+  roles:
+    - role: cchurch.win-pfx

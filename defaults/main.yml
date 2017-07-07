@@ -1,0 +1,9 @@
+---
+
+pfx_file: ''
+pfx_state: present
+
+pfx_crt: ''
+pfx_ca: ''
+pfx_key: ''
+pfx_output_file: ''
