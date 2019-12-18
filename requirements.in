@@ -1,0 +1,5 @@
+ansible
+ansible-lint
+bumpversion
+pywinrm
+tox

@@ -22,20 +22,19 @@
 
 $params = Parse-Args $args;
 
-$path = Get-Attr $params "path" $FALSE
-$state = Get-Attr $params "state" $FALSE
-$password = Get-Attr $params "password" $FALSE
+$path = Get-AnsibleParam -obj $params -name "path" -type "str" -failifempty $true
+$state = Get-AnsibleParam -obj $params -name "state" -type "str" -default $false
+$password = Get-AnsibleParam -obj $params -name "password" -type "str" -default $false
 
-If ($path -eq $FALSE)
-{
-    Fail-Json (New-Object psobject) "missing required argument: path"
+$result = @{
+    changed = $false
 }
-Else
+
+Try
 {
-    $result = New-Object psobject;
     $logfile = [IO.Path]::GetTempFileName();
     $securePwd= ""
-    If ($password -ne $FALSE)
+    If ($password -ne $false)
     {
          $securePwd = ConvertTo-SecureString -String "$password" -Force -AsPlainText
     }
@@ -43,7 +42,7 @@ Else
     $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
     $cert.Import($path, $securePwd, 'PersistKeySet')
     $thumbprint = $cert.Thumbprint
-    Set-Attr $result "thumbprint" $thumbprint;
+    $result.thumbprint = $thumbprint;
 
     $remote_cert_locations = @("Cert:\LocalMachine\My")
 
@@ -51,19 +50,19 @@ Else
     { 
         If (Get-ChildItem -Path $remote_cert_location | Where-Object {$_.Thumbprint -match "$thumbprint"})
         {
-            $thumbprintPresent = $TRUE;
+            $thumbprintPresent = $true;
         }
     }
 
-    If ($state -eq "absent" -and $thumbprintPresent -eq $TRUE)
+    If ($state -eq "absent" -and $thumbprintPresent -eq $true)
     {
         ForEach ($remote_cert_location in $remote_cert_locations)
         {
             Remove-Item -Path $remote_cert_location\$thumbprint -DeleteKey
         }
-        Set-Attr $result "changed" $true;
+        $result.changed = $true;
     }
-    ElseIf ($state -eq "present" -and $thumbprintPresent -eq $FALSE)
+    ElseIf ($state -eq "present" -and $thumbprintPresent -eq $false)
     {
         ForEach ($remote_cert_location in $remote_cert_locations) 
         {
@@ -76,13 +75,15 @@ Else
                 Import-PfxCertificate -FilePath $path -CertStoreLocation $remote_cert_location
             }
         }
-        Set-Attr $result "changed" $true;
+        $result.changed = $true;
     }
+} Catch {
+    Fail-Json $result "Error importing pfx cert."
 }
 
 $logcontents = Get-Content $logfile;
 Remove-Item $logfile;
 
-Set-Attr $result "log" $logcontents;
+$result.log = $logcontents;
 
 Exit-Json $result;
